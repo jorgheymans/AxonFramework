@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
+import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
 /**
@@ -42,10 +43,8 @@ public abstract class IdentifierFactory {
     private static final IdentifierFactory INSTANCE;
 
     static {
-        logger.debug("Looking for IdentifierFactory implementation using the context class loader");
         IdentifierFactory factory = locateFactories(Thread.currentThread().getContextClassLoader(), "Context");
         if (factory == null) {
-            logger.debug("Looking for IdentifierFactory implementation using the IdentifierFactory class loader.");
             factory = locateFactories(IdentifierFactory.class.getClassLoader(), "IdentifierFactory");
         }
         if (factory == null) {
@@ -58,11 +57,18 @@ public abstract class IdentifierFactory {
     }
 
     private static IdentifierFactory locateFactories(ClassLoader classLoader, String classLoaderName) {
+        logger.debug("Looking for IdentifierFactory implementation using the {} class loader", classLoaderName);
         IdentifierFactory found = null;
         Iterator<IdentifierFactory> services = ServiceLoader.load(IdentifierFactory.class, classLoader).iterator();
         if (services.hasNext()) {
-            logger.debug("Found IdentifierFactory implementation using the {} Class Loader", classLoaderName);
-            found = services.next();
+            try {
+                // here ServiceLoader verifies the correct type of the provided service class
+                found = services.next();
+                logger.debug("Found IdentifierFactory implementation using the {} class Loader", classLoaderName);
+            } catch (ServiceConfigurationError error) {
+                logger.warn("A service configuration error occurred for the provided IdentifierFactory: {}",
+                            error.getMessage());
+            }
             if (services.hasNext()) {
                 logger.warn("More than one IdentifierFactory implementation was found using the {} "
                                     + "Class Loader. This may result in different selections being made after "
